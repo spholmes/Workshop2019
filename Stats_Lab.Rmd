@@ -1,0 +1,198 @@
+---
+title: "Statistics lab"
+author: "Susan Holmes"
+date: "6/20/2019"
+output: html_document
+---
+
+
+<link href='http://fonts.googleapis.com/css?family=Lato&subset=latin,latin-ext' rel='stylesheet' type='text/css'>
+
+<style type="text/css"> 
+.small-code pre code {
+  font-size: 1em;
+}
+body{
+  font-family: Lato;
+  font-size: 16pt;
+}
+h1{
+  font-family: Lato;
+  font-size: 32pt;
+  color: #0080FF;
+}
+
+b, strong {
+ color: #0080FF;
+}
+
+h2,h3,h4,h5,h6{
+  font-family: Lato;
+  font-size: 24pt;
+  color: #0080FF;
+}
+</style>
+
+```{r initialize, echo = FALSE, warning = FALSE}
+## Set default options for code chunks
+knitr::opts_chunk$set(tidy = FALSE, cache = TRUE, autodep = TRUE,
+     dev = "png", dpi = 70,
+     size = "small", fig.width = 8, fig.height = 6,
+     message = FALSE, error = FALSE, warning = TRUE)
+
+## output width
+base::options(width = 70)
+
+## set seed - to have reproducibility
+set.seed(0xbedada)
+```
+
+
+
+# Multivariate Analysis
+
+## PCA analysis
+
+
+
+## PCA analysis on ranks
+
+In the phyloseq lab we created the data `abund_ranks`, you can download them or use the one you created.
+We have made a copy to download [http://bios221.stanford.edu/stamps/abund_ranks.rds](http://bios221.stanford.edu/stamps/abund_ranks.rds).
+
+```{r}
+library("ade4")
+load(url("http://bios221.stanford.edu/stamps/abund_ranks.rds"))
+ranks_pca = dudi.pca(abund_ranks, scannf = F, nf = 3)
+```
+
+To produce annotation for this figure, we used the following blocks.
+
+
+```{r}
+tax <- tax_table(ps)@.Data %>%
+  data.frame(stringsAsFactors = FALSE)
+tax$seq <- rownames(tax)
+
+main_orders <- c("Clostridiales", "Bacteroidales", "Lactobacillales",
+                   "Coriobacteriales")
+tax$Order[!(tax$Order %in% main_orders)] <- "Other"
+tax$Order <- factor(tax$Order, levels = c(main_orders, "Other"))
+tax$otu_id <- seq_len(ncol(otu_table(ps)))
+```
+
+
+```{r}
+row_scores = data.frame(li = ranks_pca$li,
+                            SampleID = rownames(abund_ranks))
+col_scores <- data.frame(co = ranks_pca$co,
+                            seq = colnames(abund_ranks))
+
+evals_prop_pca <- 100 * (ranks_pca$eig / sum(ranks_pca$eig))
+
+row_scores <- row_scores %>%
+  left_join(sample_data(pslog))
+col_scores <- col_scores %>%
+  left_join(tax)
+```
+
+Finally, let's use `ggplot`:
+
+```{r}
+ggplot() +
+  geom_point(data = row_scores, aes(x = li.Axis1, y = li.Axis2), shape = 2) +
+  geom_point(data = col_scores, aes(x = 25 * co.Comp1, y = 25 * co.Comp2, col = Order),
+              size = .3, alpha = 0.6) +
+  scale_color_brewer(palette = "Set2") +
+  facet_grid(~ age_binned) +
+  guides(col = guide_legend(override.aes = list(size = 3))) +
+  labs(x = sprintf("Axis1 [%s%% variance]", round(evals_prop_pca[1], 2)), 
+       y = sprintf("Axis2 [%s%% variance]", round(evals_prop_pca[2], 2))) +
+  coord_fixed(sqrt(ranks_pca$eig[2] / ranks_pca$eig[1])) +
+  theme(panel.border = element_rect(color = "#787878", fill = alpha("white", 0)))
+```
+
+
+
+
+## A first principal coordinates analysis (PCoA or MDS)
+
+For a first pass, we look at principal coordinates analysis (PCoA) with either the Bray-Curtis dissimilarity on the weighted Unifrac distance. 
+
+**Question M1**:
+Here is the code for the weighted Unifrac: you should now generate a plot with 
+the Bray-Curtis distance instead.
+```{r}
+set.seed(0xdada2)
+out_wuf_log = ordinate(pslog, method = "MDS", distance = "wunifrac")
+evals =  out_wuf_log$values$Eigenvalues
+plot_ordination(pslog, out_wuf_log, color = "age_binned", shape="sex") +
+  labs(col = "Binned Age") +
+  coord_fixed(sqrt(evals[2] / evals[1]))
+```
+
+**Question M2**: The above plot shows the proportion of variance explained by the 1st axis (47%) and the 2nd axis (11.2%). What is the variance explained by the 3rd axis? (Hint: Look at `evals`. Note that `evals[2],evals[1]` is 11.2, 47.)
+
+```{r}
+round(100*evals[3]/sum(evals),digits = 1)
+```
+
+
+We see immediately that there are some outliers. We will take them out, since we are mainly interested in the relationships between the non-outlier points (although we skip the details of how to specify the outliers).
+
+```{r}
+outlier_idx =   rownames(sample_data(pslog)) %in% c("M3D149","M2D19","M1D9", "M1D149", "F5D165", "F6D165")
+pslog2 = prune_samples(!outlier_idx, pslog)
+```
+
+
+**Question M3**: Redo the same ordination as above after outlier removal. What is the proportion of variance explained by the 1st axis?
+
+
+## Different ordination projections
+
+In this section we will explore different ordination projections.
+
+First we will perform a PCoA using Bray-Curtis dissimilarity.
+
+```{r}
+out_bc_log = ordinate(pslog2, method = "MDS", distance = "bray")
+```
+
+```{r}
+evals_bc = out_bc_log$values$Eigenvalues
+plot_ordination(pslog2, out_bc_log, color = "age_binned") +
+  coord_fixed(sqrt(evals_bc[2] / evals_bc[1])) +
+  labs(col = "Binned Age")
+```
+
+
+The plot above shows the ordination of the samples, and we see that the second axis corresponds to an age effect, with the samples from the younger and older mice separating fairly well.
+
+Next we look at double principal coordinates analysis (DPCoA), which is a phylogenetic ordination method that provides a biplot representation of both samples and taxonomic categories. (Warning: This next line will take a while to compute.)
+
+```{r}
+out_dpcoa_log = ordinate(pslog2, method = "DPCoA")
+```
+
+ 
+```{r}
+evals_dpcoa = out_dpcoa_log$eig
+plot_ordination(pslog2, out_dpcoa_log, color = "age_binned",
+                  shape = "family_relationship") +
+  coord_fixed(sqrt(evals_dpcoa[2] / evals_dpcoa[1])) +
+  labs(col = "Binned Age", shape = "Litter")
+```
+
+We see again that the second axis corresponds to young vs. old mice.
+
+
+```{r}
+plot_ordination(pslog2, out_dpcoa_log, type = "species", color = "Phylum") +
+  coord_fixed(sqrt(evals_dpcoa[2] / evals_dpcoa[1]))
+```
+
+The second plot suggests an interpretation of the second axis: samples that have larger scores on the second axis have more taxa from Bacteroidetes and one subset of Firmicutes.
+
+**Question M5**: Consider a sample which is particularly enriched in bacteria from the  `Bacteroidetes` Phylum. Do you think it is more likely that its projection on the first axis will have a positive value or negative value?  
+

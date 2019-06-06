@@ -1,7 +1,8 @@
 ---
-title: "Workshop III.Rmd"
+title: "Workshop II: Using phyloseq"
 abstract: >
- The second part of the workshop  demonstrates how to use `dada2` output and analyse data using the `phyloseq`, `treeDA`, `adaptiveGPCA` packages for  estimating differential abundance, ordinations. The `treelapse` allow browsing and interactive visualization of microbiome profiles. Together, these packages provide easily linked components for data acquisition and flexible analysis of 16S rRNA and whole metagenome shotgun microbiome profiles. At the end of this workshop, users will be able to access publicly available metagenomic data and to perform common statistical analyses of these and other data in Bioconductor.
+ The second part of the workshop  demonstrates how to use `dada2` output and analyse data using the `phyloseq` and ggplot packages for  visulaizing  abundances, making ordinations
+ and plotting trees. The `treelapse` allow browsing and interactive visualization of microbiome profiles. Together, these packages provide easily linked components for data acquisition and flexible analysis of 16S rRNA and whole metagenome shotgun microbiome profiles. At the end of this session, users will be able to access publicly available metagenomic data and to perform common statistical analyses of these and other data in Bioconductor.
 author: "Susan Holmes and Joey McMurdie"
 date: "June 20th, 2019"
 bibliography: F1000Work.bib
@@ -27,25 +28,24 @@ opts_chunk$set(message = FALSE, error = FALSE, warning = FALSE,
 
 
 ```{r NeededPackages, message=FALSE}
-cranpkgs=c("ggplot2","devtools","adaptiveGPCA","treelapse", "ade4","structSSI", "PMA","vegan", "ggrepel","gridExtra")
-BioCpkgs=c("dada2", "curatedMetagenomicData", "phyloseq", "DECIPHER","genefilter")
-ghpkgs= c("treeDA", "treelapse","metavizr")
+cranpkgs=c("ggplot2","devtools","treelapse", "ade4","vegan", "ggrepel","gridExtra")
+BioCpkgs=c("BiocStyle","dada2", "curatedMetagenomicData", "phyloseq", "DECIPHER","genefilter")
 instp <-  cranpkgs %in% installed.packages()
 if(any(!instp)) {
    install.packages(cranpkgs[!instp],repos="https://cloud.r-project.org")
 }
 instp <- BioCpkgs %in% installed.packages()
 if(any(!instp)) {
-   source("http://bioconductor.org/biocLite.R")
-   biocLite(BioCpkgs [!instp], ask = F)
+if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+
+BiocManager::install(BioCpkgs [!instp])
 }
 
-if(!("treeDA"  %in% installed.packages()))
-   BiocInstaller::biocLite("jfukuyama/treeDA", dependencies = TRUE)
 if(!("treelapse"  %in% installed.packages()))
-   BiocInstaller::biocLite("krisrs1128/treelapse", dependencies = TRUE)
+  devtools::install_github("krisrs1128/treelapse", dependencies = TRUE)
 
-suppressPackageStartupMessages(sapply(c(cranpkgs, BioCpkgs, ghpkgs), require, character.only = TRUE))
+suppressPackageStartupMessages(sapply(c(cranpkgs, BioCpkgs), require, character.only = TRUE))
 ```
 
 
@@ -95,7 +95,7 @@ run dada2 on a larger set of samples from the same data source.
 This object was also saved in R-native serialized RDS format.
 We will re-load this here for completeness as the initial object `ps`.
 If you have not downloaded the whole repository you can access the `ps`
-file though github:
+file through github:
 
 ```{r non-local}
 ps_connect <-url("https://raw.githubusercontent.com/spholmes/F1000_workflow/master/data/ps.rds")
@@ -103,16 +103,6 @@ ps = readRDS(ps_connect)
 ps
 ```
 
-## Shiny-phyloseq {.unnumbered}
-
-It can be beneficial to start the data exploration
-process interactively, this often saves time
-in detecting outliers and specific features of the data.
-[Shiny-phyloseq](http://joey711.github.io/shiny-phyloseq/)
-[@mcmurdie2015] is an interactive web application that provides a graphical user interface to
-the `r Biocpkg("phyloseq")` package.
-The object just loaded into the R session in this workflow
-is  suitable for  graphical exploration with Shiny-phyloseq.
 
 Filtering {#filtering .unnumbered}
 ---------
@@ -592,12 +582,12 @@ pslog <- transform_sample_counts(ps, function(x) log(1 + x))
 ```
 
 We’ll first
-perform a PCoA using Bray-Curtis dissimilarity.
+perform a PCoA using Bray-Curtis dissimilarity on the count table.
 
 ```{r ordinations-bray,fig.cap="A PCoA plot using Bray-Curtis between  samples."}
-out.pcoa.log <- ordinate(pslog,  method = "MDS", distance = "bray")
-evals <- out.pcoa.log$values[,1]
-plot_ordination(pslog, out.pcoa.log, color = "age_binned",
+out.pcoa <- ordinate(ps,  method = "MDS", distance = "bray")
+evals <- out.pcoa$values[,1]
+plot_ordination(ps, out.pcoa, color = "age_binned",
                   shape = "family_relationship") +
   labs(col = "Binned Age", shape = "Litter")+
   coord_fixed(sqrt(evals[2] / evals[1]))
@@ -677,7 +667,7 @@ microbe with the smallest in a sample gets mapped to rank 1, second
 smallest rank 2, etc.
 
 ```{r rankab}
-abund <- otu_table(pslog)
+abund <- otu_table(ps)
 abund_ranks <- t(apply(abund, 1, rank))
 ```
 
@@ -742,7 +732,7 @@ tax$Order[!(tax$Order %in% main_orders)] <- "Other"
 tax$Order <- factor(tax$Order, levels = c(main_orders, "Other"))
 tax$otu_id <- seq_len(ncol(otu_table(ps)))
 row_scores <- row_scores %>%
-  left_join(sample_data(pslog))
+  left_join(data.frame(sample_data(ps)))
 col_scores <- col_scores %>%
   left_join(tax)
 ```
@@ -766,422 +756,6 @@ The results are similar to the PCoA analyses computed without applying a
 truncated-ranking transformation, reinforcing our confidence in the
 analysis on the original data.
 
-### Canonical correspondence {#canonical-correspondence .unnumbered}
-
-Canonical Correspondence Analysis (CCpnA) is an approach to ordination
-of a species by sample table that incorporates supplemental information
-about the samples. As before, the purpose of creating biplots is to
-determine which types of bacterial communities are most prominent in
-different mouse sample types. It can be easier to interpret these
-biplots when the ordering between samples reflects sample
-characteristics – variations in age or litter status in the mouse data,
-for example – and this central to the design of CCpnA.
-
-The function allows us to create biplots where the positions of samples
-are determined by similarity in both species signatures and
-environmental characteristics; in contrast, principal components
-analysis or correspondence analysis only look at species signatures.
-More formally, it ensures that the resulting CCpnA directions lie in the
-span of the environmental variables; thorough treatments are available
-in [@terBraak:1985; @greenacre2007correspondence].
-
-Like PCoA and DPCoA, this method can be run using `ordinate` from the `phyloseq` package . In order to use
-supplemental sample data, it is necessary to provide an extra argument,
-specifying which of the features to consider – otherwise, defaults to
-using all measurements when producing the ordination.
-
-
-```{r ccpna-correspondence-analysis}
-ps_ccpna <- ordinate(pslog, "CCA", formula = pslog ~ age_binned + family_relationship)
-```
-
-To access the positions for the biplot,
-we can use the function `ordinate` in `phyloseq`.
-Further, to facilitate figure annotation, we also join the site scores
-with the environmental data in the slot. Of the 23 total taxonomic
-orders, we only explicitly annotate the four most abundant – this makes
-the biplot easier to read.
-
-```{r ccpna-join-data, fig.cap="The mouse and bacteria scores generated by CCpnA.", fig.wide=TRUE, fig.height=10}
-library(ggrepel)
-ps_scores <- vegan::scores(ps_ccpna)
-sites <- data.frame(ps_scores$sites)
-sites$SampleID <- rownames(sites)
-sites <- sites %>%
-  left_join(sample_data(ps))
-
-species <- data.frame(ps_scores$species)
-species$otu_id <- seq_along(colnames(otu_table(ps)))
-species <- species %>%
-  left_join(tax)
-evals_prop <- 100 * ps_ccpna$CCA$eig[1:2] / sum(ps_ccpna$CA$eig)
-ggplot() +
-  geom_point(data = sites, aes(x = CCA1, y = CCA2), shape = 2, alpha = 0.5) +
-  geom_point(data = species, aes(x = CCA1, y = CCA2, col = Order), size = 0.5) +
-  geom_text_repel(data = species %>% filter(CCA2 < -2),
-                    aes(x = CCA1, y = CCA2, label = otu_id),
-		    size = 1.5, segment.size = 0.1) +
-  facet_grid(. ~ family_relationship) +
-  guides(col = guide_legend(override.aes = list(size = 3))) +
-  labs(x = sprintf("Axis1 [%s%% variance]", round(evals_prop[1], 2)),
-        y = sprintf("Axis2 [%s%% variance]", round(evals_prop[2], 2))) +
-  scale_color_brewer(palette = "Set2") +
-  coord_fixed(sqrt(ps_ccpna$CCA$eig[2] / ps_ccpna$CCA$eig[1])*0.45   ) +
-  theme(panel.border = element_rect(color = "#787878", fill = alpha("white", 0)))
-```  
-
-# Supervised learning {#sec:supervised-learning .unnumbered}
-
-Here we illustrate some supervised learning methods that can be easily
-run in R. The package wraps many prediction algorithms available in R
-and performs parameter tuning automatically. Since we saw that
-microbiome signatures change with age, we’ll apply supervised techniques
-to try to predict age from microbiome composition.
-
-We’ll first look at Partial Least Squares (PLS)[@PLSwold]. The first
-step is to divide the data into training and test sets, with assignments
-done by mouse, rather than by sample, to ensure that the test set
-realistically simulates the collection of new data. Once we split the
-data, we can use the function `train` to fit the PLS model.
-
-```{r caret-pls}
-library(caret)
-sample_data(pslog)$age2 <- cut(sample_data(pslog)$age, c(0, 100, 400))
-dataMatrix <- data.frame(age = sample_data(pslog)$age2, otu_table(pslog))
-# take 8 mice at random to be the training set, and the remaining 4 the test set
-trainingMice <- sample(unique(sample_data(pslog)$host_subject_id), size = 8)
-inTrain <- which(sample_data(pslog)$host_subject_id %in% trainingMice)
-training <- dataMatrix[inTrain,]
-testing <- dataMatrix[-inTrain,]
-plsFit <- train(age ~ ., data = training,
-                method = "pls", preProc = "center")
-```
-
-
-
-Next we can predict class labels on the test set using the function 
-`predict` and
-compare to the truth. We see that the method does an excellent job of
-predicting age.
-
-```{r caret-pls-confusion}
-plsClasses <- predict(plsFit, newdata = testing)
-table(plsClasses, testing$age)
-```
-
-
-
-
-
-As another example, we can try out random forests. This is run in
-exactly the same way as PLS, by switching the argument from to . Random
-forests also perform well at the prediction task on this test set,
-though there are more old mice misclassified as young.
-
-```{r caret-rf, eval =T}
-library(randomForest)
-rfFit <- train(age ~ ., data = training, method = "rf",
-               preProc = "center", proximity = TRUE)
-rfClasses <- predict(rfFit, newdata = testing)
-table(rfClasses, testing$age)
-```
-
-
-To interpret these PLS and random forest results, it is standard to
-produce biplots and proximity plots, respectively. The code below
-extracts coordinates and supplies annotation for points to include on
-the PLS biplot.
-
-```{r caret-pls-scores-loadings}
-pls_biplot <- list("loadings" = loadings(plsFit$finalModel),
-                   "scores" = scores(plsFit$finalModel))
-class(pls_biplot$scores) <- "matrix"
-
-pls_biplot$scores <- data.frame(sample_data(pslog)[inTrain, ],
-                                pls_biplot$scores)
-
-tax <- tax_table(ps)@.Data %>%
-  data.frame(stringsAsFactors = FALSE)
-main_orders <- c("Clostridiales", "Bacteroidales", "Lactobacillales",
-                 "Coriobacteriales")
-tax$Order[!(tax$Order %in% main_orders)] <- "Other"
-tax$Order <- factor(tax$Order, levels = c(main_orders, "Other"))
-class(pls_biplot$loadings) <- "matrix"
-pls_biplot$loadings <- data.frame(tax, pls_biplot$loadings)
-```
-
-```{r caret-pls-scores-plot, fig.height = 7, fig.width=8, fig.wide=TRUE, fig.cap="PLS produces a biplot representation designed to separate  samples by a response variable."}
-ggplot() +
-  geom_point(data = pls_biplot$scores,
-             aes(x = Comp.1, y = Comp.2), shape = 2) +
-  geom_point(data = pls_biplot$loadings,
-             aes(x = 25 * Comp.1, y = 25 * Comp.2, col = Order),
-             size = 0.3, alpha = 0.6) +
-  scale_color_brewer(palette = "Set2") +
-  labs(x = "Axis1", y = "Axis2", col = "Binned Age") +
-  guides(col = guide_legend(override.aes = list(size = 3))) +
-  facet_grid( ~ age2) +
-  theme(panel.border = element_rect(color = "#787878", fill = alpha("white", 0)))
-```
-
-The resulting biplot is displayed in Figure
-\@ref(fig:caret-pls-scores-plot); it can be interpreted similarly to
-earlier ordination diagrams, with the exception that the projection is
-chosen with an explicit reference to the binned age variable.
-Specifically, PLS identifies a subspace to maximize discrimination
-between classes, and the biplot displays sample projections and ASV
-coefficients with respect to this subspace.
-
-
-```{r caret-proximity, fig.wide=TRUE, fig.cap="The random forest model determines a distance between samples, which can be input into PCoA to produce a proximity plot."}
-rf_prox <- cmdscale(1 - rfFit$finalModel$proximity) %>%
-  data.frame(sample_data(pslog)[inTrain, ])
-
-ggplot(rf_prox) +
-  geom_point(aes(x = X1, y = X2, col = age_binned),
-             size = 1, alpha = 0.7) +
-  scale_color_manual(values = c("#A66EB8", "#238DB5", "#748B4F")) +
-  guides(col = guide_legend(override.aes = list(size = 4))) +
-  labs(col = "Binned Age", x = "Axis1", y = "Axis2")
-```
-
-A random forest proximity plot is displayed in Figure
-\@ref(fig:caret-proximity). To generate this representation, a distance
-is calculated between samples based on how frequently sample occur in
-the same tree partition in the random forest's bootstrapping
-procedure. If a pair of samples frequently occur in the same
-partition, the pair is assigned a low distance. The resulting
-distances are then input to PCoA, giving a glimpse into the random
-forests' otherwise complex classification mechanism. The separation
-between classes is clear, and manually inspecting points would reveal
-what types of samples are easier or harder to classify.
-
-
-```{r caret-rf-importance, fig.height=6, fig.width=9, fig.cap="Random forest aids to interpretation: importance scores."}
-as.vector(tax_table(ps)[which.max(importance(rfFit$finalModel)), c("Family", "Genus")])
-impOtu <- as.vector(otu_table(pslog)[,which.max(importance(rfFit$finalModel))])
-maxImpDF <- data.frame(sample_data(pslog), abund = impOtu)
-ggplot(maxImpDF) +   geom_histogram(aes(x = abund)) +
-  facet_grid(age2 ~ .) +
-  labs(x = "Abundance of discriminative bacteria", y = "Number of samples")
-```
-
-To further understand the fitted random forest model, we identify the
-microbe with the most influence in the random forest prediction. This
-turns out to be a microbe in family _Lachnospiraceae_ and genus
-_Roseburia_. Figure \@ref(fig:caret-rf-importance) plots its abundance
-across samples; we see that it is uniformly very low from age 0 to 100
-days and much higher from age 100 to 400 days.
-
-
-# Multitable techniques {#multitable-techniques .unnumbered}
-
-Many microbiome studies attempt to quantify variation in the microbial,
-genomic, and metabolic measurements across different experimental
-conditions. As a result, it is common to perform multiple assays on the
-same biological samples and ask what features – bacteria, genes, or
-metabolites, for example – are associated with different sample
-conditions. There are many ways to approach these questions, which to
-apply depends on the study’s focus.
-
-Here, we will focus on one specific workflow that uses sparse Canonical
-Correlation Analysis (sparse CCA), a method well-suited to both
-exploratory comparisons between samples and the identification of
-features with interesting variation. We will use an implementation from
-the `r CRANpkg("PMA")` [@witten2009pma].
-
-Since the mouse data used above included only a single table, we use a
-new data set, collected by the study [@kashyap2013genetically]. There
-are two tables here, one for bacteria and another with metabolites. 12
-samples were obtained, each with measurements at 637 m/z values and
-20,609 OTUs; however, about 96% of the entries of the microbial
-abundance table are exactly zero. The code below retrieves 
-and filters these data.
-
-
-```{r multitable-setup}
-metab <- read.csv("https://raw.githubusercontent.com/spholmes/F1000_workflow/master/data/metabolites.csv",row.names = 1)
-microbe_connect <-url("https://raw.githubusercontent.com/spholmes/F1000_workflow/master/data/microbe.rda")
-load(microbe_connect)
-microbe
-```
-
-We see that `microbe` is a `phyloseq` object.
-Our preprocessing mirrors that done for the mouse data. We first filter
-down to microbes and metabolites of interest, removing those that are
-zero across many samples. Then, we transform them to weaken the heavy
-tails.
-We also take the log of the metabolites.
-
-```{r multitable-filtering}
-library("genefilter")
-keep_ix <- rowSums(metab == 0) <= 3
-metab <- metab[keep_ix, ]
-microbe <- prune_taxa(taxa_sums(microbe) > 4, microbe)
-microbe <- filter_taxa(microbe, filterfun(kOverA(3, 2)), TRUE)
-metab <- log(1 + metab, base = 10)
-X <- otu_table(microbe)
-X[X > 50] <- 50
-dim(X)
-dim(metab)
-```
-We see that both X and metab have 12 columns, these are actually
-the samples and we will transpose them.
-
-We can now apply sparse CCA. This method compares sets of features
-across high-dimensional data tables, where there may be more measured
-features than samples. In the process, it chooses a subset of available
-features that capture the most covariance – these are the features that
-reflect signals present across multiple tables. We then apply PCA to
-this selected subset of features. In this sense, we use sparse CCA as a
-screening procedure, rather than as an ordination method.
-
-Our implementation is below. The parameters `penaltyx` and `penaltyz` are sparsity penalties.
- `penaltyx` will modulate selected microbes, similarly
-`penaltyz`
-modulates the number of selected metabolites. We tune them manually to
-facilitate subsequent interpretation – we gene
-rally prefer more sparsity
-than the default parameters would provide.
-
-
-```{r multitable-sparse-cca}
-library(PMA)
-cca_res <- CCA(t(X),  t(metab), penaltyx = .15, penaltyz = .15)
-cca_res
-```
-
-With these parameters, 5 microbes and 15 metabolites have been selected,
-based on their ability to explain covariation between tables. Further,
-these 20 features result in a correlation of 0.974 between the two
-tables. We interpret this to mean that the microbial and metabolomic
-data reflect similar underlying signals, and that these signals can be
-approximated well by the 20 selected features. Be wary of the
-correlation value, however, since the scores are far from the usual
-bivariate normal cloud. Further, note that it is possible that other
-subsets of features could explain the data just as well – sparse CCA has
-minimized redundancy across features, but makes no guarantee that these
-are the “true” features in any sense.
-
-Nonetheless, we can still use these 20 features to compress information
-from the two tables without much loss. To relate the recovered
-metabolites and OTUs to characteristics of the samples on which they
-were measured, we use them as input to an ordinary PCA.
-
-```{r loadade4,echo=FALSE}
-library(ade4)
-```
-
-```{r multitable-plug-in-pca }
-combined <- cbind(t(X[cca_res$u != 0, ]),
-                  t(metab[cca_res$v != 0, ]))
-pca_res <- dudi.pca(combined, scannf = F, nf = 3)
-```
-
-```{r annotation}
-genotype <- substr(rownames(pca_res$li), 1, 2)
-sample_type <- substr(rownames(pca_res$l1), 3, 4)
-feature_type <- grepl("\\.", colnames(combined))
-feature_type <- ifelse(feature_type, "Metabolite", "OTU")
-sample_info <- data.frame(pca_res$li, genotype, sample_type)
-feature_info <- data.frame(pca_res$c1,
-                           feature = substr(colnames(combined), 1, 6))
-```
-
-```{r multitable-interpret-pca, fig.wide=TRUE, fig.cap="A PCA triplot produced from the CCA selected features in from muliple data types;metabolites and OTUs."}
-ggplot() +  geom_point(data = sample_info,
-            aes(x = Axis1, y = Axis2, col = sample_type, shape = genotype), size = 3) + 
-  geom_label_repel(data = feature_info,
-                   aes(x = 5.5 * CS1, y = 5.5 * CS2, label = feature, fill = feature_type),
-                   size = 2, segment.size = 0.3,
-                   label.padding = unit(0.1, "lines"), label.size = 0) +
-  geom_point(data = feature_info,
-             aes(x = 5.5 * CS1, y = 5.5 * CS2, fill = feature_type),
-             size = 1, shape = 23, col = "#383838") +
-  scale_color_brewer(palette = "Set2") +
-  scale_fill_manual(values = c("#a6d854", "#e78ac3")) +
-  guides(fill = guide_legend(override.aes = list(shape = 32, size = 0))) +
-  coord_fixed(sqrt(pca_res$eig[2] / pca_res$eig[2])) +
-  labs(x = sprintf("Axis1 [%s%% Variance]",
-                   100 * round(pca_res$eig[1] / sum(pca_res$eig), 2)),
-       y = sprintf("Axis2 [%s%% Variance]",
-                   100 * round(pca_res$eig[2] / sum(pca_res$eig), 2)),
-       fill = "Feature Type", col = "Sample Type")
-```       
-
-Note that we have departed from our convention of fixing the aspect ratio 
-here as the second axis
-represents very little of the variability and the plot would actually become unreadable.
-
-Figure \@ref(fig:multitable-interpret-pca) displays a PCA *triplot*,
-where we show different types of samples and the multidomain features
-(Metabolites and OTUs). This allows comparison across the measured
-samples – triangles for Knockout and circles for wild type – and
-characterizes the influence the different features – diamonds with text
-labels. For example, we see that the main variation in the data is
-across PD and ST samples,
-which correspond to the different diets.
-
-Further, large values of 15 of the features are associated with ST
-status, while small values for 5 of them indicate PD status. The
-advantage of the sparse CCA screening is now clear – we can display most
-of the variation across samples using a relatively simple plot, and can
-avoid plotting the hundreds of additional points that would be needed to
-display all of the features.
-
-
-
-
-
-
-
-# DPCOA and adaptive GPCA analyses
-
-It is important to be able to integrate the phylogenetic tree information into
-the analysis. 
-We start with a small example from the Antibiotic data study (Relman and Dethfelsen, 2011)
-available in the DPCoA packages.
-This can be done through either the use of the ordinate
-function with the method="DPCoA" or better still by using the new adaptiveGPCA
-package.
-
-
-Interpolation between complete tree based DPCOA analyses and
-PCA analysis, this requires interactive use and shiny, so not evaluated
-in vignette here:
-
-```{r, eval =FALSE}
-#not run
-data(AntibioticPhyloseq)
-theme_set(theme_bw())
-pp = processPhyloseq(AntibioticPhyloseq)
-out.ff = gpcaFullFamily(pp$X, pp$Q, k = 2)
-out.agpca = visualizeFullFamily(out.ff,
-                    sample_data = sample_data(AntibioticPhyloseq),
-                    sample_mapping = aes(x = Axis1, y = Axis2, color = condition),
-                    var_data = tax_table(AntibioticPhyloseq),
-                    var_mapping = aes(x = Axis1, y = Axis2, color = Phylum))
-```
-
-
-# Sparse discriminant analyses using a phylogenetic tree
-
-The package itself needs to downloaded from github:
-
-```{r}
-##devtools::install.github("jfukuyama/treeDA")
-library(treeDA)
-library(adaptiveGPCA)
-data(AntibioticPhyloseq)
-theme_set(theme_bw())
-```
-
-```{r}
-out.treeda = treeda(response = sample_data(AntibioticPhyloseq)$type,
-    predictors = otu_table(AntibioticPhyloseq),
-    tree = phy_tree(AntibioticPhyloseq), p = 15)
-```
-
 
 
 # Looking at longitudinal data in the presence of a tree using treelapse.
@@ -1189,4 +763,6 @@ out.treeda = treeda(response = sample_data(AntibioticPhyloseq)$type,
 [Tutorial example](http://statweb.stanford.edu/~kriss1/antibiotic.html)
 
 
-#References
+# References   
+
+
