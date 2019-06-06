@@ -1,0 +1,142 @@
+---
+title: "Before coming to the ASM workshop"
+abstract: 
+    "ASM: Microbial Ecology using R and Bioconductor: From Raw Reads to Statistical Testing"
+author: "Benjamin Callahan, Susan Holmes and Joey McMurdie"
+
+output:
+  BiocStyle::html_document:
+    number_sections: no
+    toc: yes
+    toc_depth: 4
+---
+
+## R Update
+
+We will mainly use two packages during this workshop: [dada2](https://benjjneb.github.io/dada2/index.html) and [phyloseq](https://joey711.github.io/phyloseq/index.html). 
+
+It is recommanded that you update your R software in order that these packages run smoothly.
+
+You should have R version **3.6.0 or newer**, and Bioconductor version 3.9. Using Bioconductor is the easiest way to install both `dada2` and `phyloseq`. You can check your actual  R version by executing the `R.version` command in R. 
+
+```{r version, eval=FALSE}
+R.version
+```
+
+If your version is older than 3.6, follow the next steps. If not, skip to the <span style="color:red"> Installing the packages</span> section. 
+
+## For Windows users
+
+```{r win, eval=FALSE}
+install.packages("installr")
+library(installr)
+updateR()
+```
+
+This should migrate the packages you've installed on your older version of R to the folder corresponding to the newest version of R. It also updates all the packages you've installed from the CRAN repository. 
+
+## For Mac users
+
+```{r mac, eval=FALSE}
+install.packages('devtools')
+library(devtools)
+install_github('andreacirilloac/updateR')
+library(updateR)
+updateR(admin_password = 'Admin user password')
+```
+
+In order to check if everything went according to plan:
+```{r checkpack, eval=FALSE}
+R.version
+```
+
+
+## Installing packages
+
+Now that you've got an up to date version of R, 
+we're going to install `dada2` and `phyloseq`. 
+
+
+
+The new installation solution uses `BiocManager` which is preferable to the older `biocLite` method.
+```{r Bioconductor-new, eval=FALSE}
+if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+BiocManager::install("dada2", version = "3.9")
+BiocManager::install("phyloseq", version = "3.9")
+```
+
+
+The **OLD** way of doing this was (using biocLite):
+```{r Bioconductor-old, eval=FALSE}
+source("https://bioconductor.org/biocLite.R") # Installs Bionconductor
+biocLite("dada2") # Installs dada2 
+biocLite("phyloseq") # Installs phyloseq 
+```
+
+
+If this doesn't work you can try other methods. Methods for [DADA2](https://benjjneb.github.io/dada2/dada-installation.html) and [Phyloseq](https://joey711.github.io/phyloseq/install.html). <br>  
+
+If you don't succeed, we'll help you out in the first timeslot of the workshop.
+
+## Getting specific information on a package or function
+
+On RStudio you can type ?'name' or help('name')
+For example:
+```{r help , eval=FALSE}
+library(dada2) # Loads the DADA2 package in the environment
+?dada2 
+?filterAndTrim # One of DADA2's functions
+help(filterAndTrim)
+```
+
+**This is particularly interesting to understand the parameters the function uses**
+
+You can also see the source code of a function by just typing its name.
+```{r code , eval=FALSE}
+library(dada2) # Loads the dada2 package in the environment
+filterAndTrim
+```
+
+
+
+## Setting and checking your directory
+
+Whenever you're launching R, it selects a default directory (i.e a file in which you can save your script, your objects). The function `getwd` will give you the path to the directory you are in. In order to change it, the function `setwd` is used. You have to specify the path to the directory you want. Another usefull function is `list.files` which will return all the files present in the directory you're in. 
+
+```{r dir , eval=FALSE}
+getwd()
+setwd("/Users/Serina/SelfStudy/ASM/")
+list.files()
+```
+
+Note: It is actually worth your time to use the `here` package and create a new R project:
+
+```{r here, eval=FALSE}
+install.packages("here")
+here("data", "file_wanted.csv")
+```
+
+see the [recommendation by Jenny Bryan here](https://github.com/jennybc/here_here).
+
+## Saving and loading your objects
+
+When you run a pipeline or analysis, it is convenient to save the objects such as matrices or dataframes. By doing so, you won't have to run your analysis every single time you want to view the object in question.
+In order to save an object the function `saveRDS` can be used. The object can then be opened with the `readRDS` function. This pair of functions are an alternative to the `save` and `load`. Their adventage is to allow the user to give a new name to the saved object when they load it.  
+
+```{r save , eval=FALSE}
+mat <- matrix(sample(0:1, 12, replace=TRUE),3,4) # A 3 by 4 matrix containing 0s and 1s
+saveRDS(mat, "nem.rds") # Save mat with Neo as a file name 
+the.matrix <- readRDS("nem.rds") # Load the file nem.rds but it will no longer be named mat but the.matrix in your environment
+identical(mat, the.matrix ) # Checks if mat and my.matrix are identical
+```
+
+## References
+
+ - [Getting help in R](https://www.r-project.org/help.html)
+ - [dada2 tutorial material](https://benjjneb.github.io/dada2/tutorial.html)
+ - [Main phyloseq website](https://joey711.github.io/phyloseq/index.html)
+ - [Workshop materials](http://web.stanford.edu/class/bios221/Workshops/)
+ - [Github site for these materials](https://github.com/spholmes/Workshop2019)
+
+
