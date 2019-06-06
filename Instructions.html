@@ -441,7 +441,7 @@ Susan Holmes, Benjamin Callahan and Joey McMurdie
 <div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb2-1" title="1"><span class="kw">install.packages</span>(<span class="st">&quot;installr&quot;</span>)</a>
 <a class="sourceLine" id="cb2-2" title="2"><span class="kw">library</span>(installr)</a>
 <a class="sourceLine" id="cb2-3" title="3"><span class="kw">updateR</span>()</a></code></pre></div>
-<p>What is nice with this package is that it should migrate the packages you’ve installed on your older version of R to the folder corresponding to the newest version of R. It also updates all the packages you’ve installed from the CRAN repository.</p>
+<p>This should migrate the packages you’ve installed on your older version of R to the folder corresponding to the newest version of R. It also updates all the packages you’ve installed from the CRAN repository.</p>
 </div>
 <div id="for-mac-users" class="slide section level2">
 <h1>For Mac users</h1>
@@ -455,8 +455,8 @@ Susan Holmes, Benjamin Callahan and Joey McMurdie
 </div>
 <div id="installing-packages" class="slide section level2">
 <h1>Installing packages</h1>
-<p>Now that you’ve got an aup to date version of R, we’re going to install <code>dada2</code> and <code>phyloseq</code>.</p>
-<p>The new installation solution uses <code>BiocManager</code> which is preferable.</p>
+<p>Now that you’ve got an up to date version of R, we’re going to install <code>dada2</code> and <code>phyloseq</code>.</p>
+<p>The new installation solution uses <code>BiocManager</code> which is preferable to the older <code>biocLite</code> method.</p>
 <div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb5-1" title="1"><span class="cf">if</span> (<span class="op">!</span><span class="kw">requireNamespace</span>(<span class="st">&quot;BiocManager&quot;</span>, <span class="dt">quietly =</span> <span class="ot">TRUE</span>))</a>
 <a class="sourceLine" id="cb5-2" title="2">    <span class="kw">install.packages</span>(<span class="st">&quot;BiocManager&quot;</span>)</a>
 <a class="sourceLine" id="cb5-3" title="3">BiocManager<span class="op">::</span><span class="kw">install</span>(<span class="st">&quot;dada2&quot;</span>, <span class="dt">version =</span> <span class="st">&quot;3.9&quot;</span>)</a>
@@ -499,10 +499,6 @@ Susan Holmes, Benjamin Callahan and Joey McMurdie
 <a class="sourceLine" id="cb11-2" title="2"><span class="kw">saveRDS</span>(mat, <span class="st">&quot;Neo&quot;</span>) <span class="co"># Save mat with Neo as a file name </span></a>
 <a class="sourceLine" id="cb11-3" title="3">the.matrix &lt;-<span class="st"> </span><span class="kw">readRDS</span>(<span class="st">&quot;Neo&quot;</span>) <span class="co"># Load the file Neo but it will no longer be named mat but the.matrix in your environment</span></a>
 <a class="sourceLine" id="cb11-4" title="4"><span class="kw">identical</span>(mat, the.matrix ) <span class="co"># Checks if mat and my.matrix are identical</span></a></code></pre></div>
-</div>
-<div id="mike-loves-bioconductor-refcard" class="slide section level2">
-<h1>Mike Love’s Bioconductor “Refcard”</h1>
-<p><a href="https://github.com/mikelove/bioc-refcard">Refcard</a></p>
 </div>
 
   <!-- dynamically load mathjax for compatibility with self-contained -->
