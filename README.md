@@ -4,6 +4,7 @@ Syllabus for one day workshop with introductory lectures on:
   - Exact ASVs
   - DADA2 Method
   - DADA2 Workflow
+  - Heterogeneous data and data types in R 
   - Phyloseq data structure
   - Phyloseq wrappers for visualization
   - Phyloseq data import and manipulations
